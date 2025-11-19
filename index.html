@@ -165,6 +165,28 @@
       overflow: hidden;
     }
 
+    .map-legend {
+      font-size: .7rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
     .controls {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -436,7 +458,7 @@
 <header>
   <div class="title">
     FloraBike
-    <span class="title-badge">V1 prototype</span>
+    <span class="title-badge">V1.1 — Carte vivante</span>
   </div>
   <p class="subtitle">
     Découvre les espèces observées autour de ta route, en direct depuis iNaturalist.
@@ -506,6 +528,26 @@
       </div>
 
       <div id="map"></div>
+      <div class="map-legend">
+        <span class="legend-item">
+          <span class="legend-dot" style="background:#22c55e"></span> Plantes
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot" style="background:#eab308"></span> Insectes
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot" style="background:#38bdf8"></span> Oiseaux
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot" style="background:#f97316"></span> Mammifères
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot" style="background:#a855f7"></span> Champignons
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot" style="background:#94a3b8"></span> Autres
+        </span>
+      </div>
 
       <div class="status-bar" id="statusBar">
         <span class="status-pill">
@@ -572,7 +614,6 @@
   const taxonGroup = document.getElementById("taxonGroup");
   const monthSelect = document.getElementById("monthSelect");
   const statusText = document.getElementById("statusText");
-  const statusBar = document.getElementById("statusBar");
   const statusDot = document.getElementById("statusDot");
   const coordsText = document.getElementById("coordsText");
   const speciesListEl = document.getElementById("speciesList");
@@ -580,6 +621,16 @@
   const listSubtitle = document.getElementById("listSubtitle");
   const useLocationBtn = document.getElementById("useLocationBtn");
   const resetLyonBtn = document.getElementById("resetLyonBtn");
+
+  // Couleurs par groupe pour les points sur la carte
+  const TAXON_COLOR = {
+    Plantae: "#22c55e",
+    Insecta: "#eab308",
+    Aves: "#38bdf8",
+    Mammalia: "#f97316",
+    Fungi: "#a855f7",
+    default: "#94a3b8"
+  };
 
   // Initialise month = mois courant par défaut
   (function initMonthDefault() {
@@ -611,6 +662,9 @@
     weight: 1.2
   }).addTo(map);
 
+  // Layer pour les observations
+  let observationsLayer = L.layerGroup().addTo(map);
+
   coordsText.textContent = `Centre : ${formatLatLng(...LYON)}`;
 
   function updateCirclePosition() {
@@ -621,7 +675,7 @@
     coordsText.textContent = `Centre : ${formatLatLng(lat, lng)}`;
   }
 
-  // --- Fetch iNaturalist species -----------------------------------------
+  // --- Fetch iNaturalist species (agrégées pour la liste) -----------------
   let lastController = null;
 
   async function fetchSpeciesForCurrentSelection() {
@@ -637,11 +691,11 @@
     const controller = new AbortController();
     lastController = controller;
 
-    // Construction de l’URL iNaturalist
+    // Construction de l’URL iNaturalist (espèces agrégées)
     const url = new URL("https://api.inaturalist.org/v1/observations/species_counts");
     url.searchParams.set("lat", lat.toFixed(4));
     url.searchParams.set("lng", lng.toFixed(4));
-    url.searchParams.set("radius", radiusKm.toString()); // rayon en km
+    url.searchParams.set("radius", radiusKm.toString());
     url.searchParams.set("per_page", "50");
     url.searchParams.set("verifiable", "true");
     url.searchParams.set("quality_grade", "research");
@@ -654,7 +708,7 @@
       url.searchParams.set("month", monthVal);
     }
 
-    console.log("[FloraBike] Requête iNaturalist:", url.toString());
+    console.log("[FloraBike] species_counts:", url.toString());
 
     setStatusLoading();
 
@@ -674,11 +728,20 @@
       const results = Array.isArray(data.results) ? data.results : [];
       renderSpeciesList(results);
       setStatusReady(data.total_results);
+
+      // Une fois la liste chargée, on récupère les observations pour la carte
+      fetchObservationsForMap({
+        lat,
+        lng,
+        radiusKm,
+        iconic,
+        monthVal
+      });
     } catch (err) {
       if (err.name === "AbortError") {
         return; // requête annulée → on ignore
       }
-      console.error("Erreur iNaturalist:", err);
+      console.error("Erreur iNaturalist species_counts:", err);
       renderError(
         "Impossible de récupérer les données iNaturalist pour cette zone.",
         err
@@ -723,9 +786,92 @@
 
     speciesCountEl.textContent = "";
     listSubtitle.textContent = "Erreur de chargement.";
+
+    // On efface aussi les points sur la carte
+    observationsLayer.clearLayers();
   }
 
-  // --- Render list --------------------------------------------------------
+  // --- Fetch pour les observations individuelles (points sur la carte) ----
+  async function fetchObservationsForMap({ lat, lng, radiusKm, iconic, monthVal }) {
+    const url = new URL("https://api.inaturalist.org/v1/observations");
+    url.searchParams.set("lat", lat.toFixed(4));
+    url.searchParams.set("lng", lng.toFixed(4));
+    url.searchParams.set("radius", radiusKm.toString());
+    url.searchParams.set("per_page", "200");
+    url.searchParams.set("verifiable", "true");
+    url.searchParams.set("quality_grade", "research");
+    url.searchParams.set("locale", "fr");
+    url.searchParams.set("order", "desc");
+    url.searchParams.set("order_by", "observed_on");
+
+    if (iconic && iconic !== "all") {
+      url.searchParams.set("iconic_taxa", iconic);
+    }
+    if (monthVal && monthVal !== "all") {
+      url.searchParams.set("month", monthVal);
+    }
+
+    console.log("[FloraBike] observations:", url.toString());
+
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      const results = Array.isArray(data.results) ? data.results : [];
+      renderObservationPoints(results);
+    } catch (err) {
+      console.error("Erreur iNaturalist observations:", err);
+      // on ne casse pas l’app pour autant, on laisse juste la carte vide
+      observationsLayer.clearLayers();
+    }
+  }
+
+  function renderObservationPoints(observations) {
+    observationsLayer.clearLayers();
+    if (!observations.length) return;
+
+    observations.forEach((obs) => {
+      const loc = obs.location;
+      if (!loc) return;
+      const parts = loc.split(",");
+      if (parts.length !== 2) return;
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
+      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+      const taxon = obs.taxon || {};
+      const iconic = taxon.iconic_taxon_name || "default";
+      const color = TAXON_COLOR[iconic] || TAXON_COLOR.default;
+      const common =
+        taxon.preferred_common_name ||
+        taxon.preferred_common_name_fr ||
+        taxon.common_name ||
+        "";
+      const sci = taxon.name || "Nom scientifique inconnu";
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: 4,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.85,
+        weight: 1
+      });
+
+      const labelCommon = common || "(Nom vernaculaire inconnu)";
+      marker.bindTooltip(
+        `<strong>${labelCommon}</strong><br/><em>${sci}</em>`,
+        { direction: "top", offset: [0, -2] }
+      );
+
+      observationsLayer.addLayer(marker);
+    });
+  }
+
+  // --- Render list (espèces agrégées) -------------------------------------
   function renderSpeciesList(results) {
     if (!results.length) {
       speciesListEl.innerHTML = `
