@@ -282,6 +282,25 @@
       box-shadow: none;
     }
 
+    .gpx-bar {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      justify-content: space-between;
+      font-size: .75rem;
+      color: var(--text-muted);
+    }
+
+    .gpx-info {
+      opacity: .9;
+      max-width: 60%;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
     .status-bar {
       font-size: .75rem;
       color: var(--text-muted);
@@ -458,7 +477,7 @@
 <header>
   <div class="title">
     FloraBike
-    <span class="title-badge">V1.1 — Carte vivante</span>
+    <span class="title-badge">V2 — GPX & carte vivante</span>
   </div>
   <p class="subtitle">
     Découvre les espèces observées autour de ta route, en direct depuis iNaturalist.
@@ -527,6 +546,18 @@
         </button>
       </div>
 
+      <div class="gpx-bar">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button id="importGpxBtn">
+            📂 Importer un GPX
+          </button>
+          <input type="file" id="gpxInput" accept=".gpx" style="display:none" />
+        </div>
+        <span id="gpxInfo" class="gpx-info">
+          Aucun trajet chargé.
+        </span>
+      </div>
+
       <div id="map"></div>
       <div class="map-legend">
         <span class="legend-item">
@@ -552,7 +583,7 @@
       <div class="status-bar" id="statusBar">
         <span class="status-pill">
           <span class="status-dot" id="statusDot"></span>
-          <span id="statusText">Déplace le marqueur ou utilise ta position.</span>
+          <span id="statusText">Déplace le marqueur, importe un GPX ou utilise ta position.</span>
         </span>
         <span id="coordsText"></span>
       </div>
@@ -568,14 +599,14 @@
 
       <div class="list-header">
         <span id="listSubtitle">
-          Rien encore, choisis un point sur la carte.
+          Rien encore, choisis un point sur la carte ou un trajet.
         </span>
         <span class="species-count" id="speciesCount"></span>
       </div>
 
       <div class="species-list" id="speciesList">
         <div class="empty-state">
-          Déplace le marqueur, choisis ton rayon et un groupe taxonomique.
+          Déplace le marqueur, importe un fichier GPX ou choisis ton rayon et un groupe taxonomique.
           FloraBike te renverra les espèces observées dans cette zone à partir des
           données <a href="https://www.inaturalist.org" target="_blank" class="link">iNaturalist</a>.
         </div>
@@ -608,6 +639,29 @@
     return new Date().getMonth() + 1;
   }
 
+  // Distance haversine (km)
+  function haversine(a, b) {
+    const R = 6371;
+    const lat1 = a[0] * Math.PI / 180;
+    const lon1 = a[1] * Math.PI / 180;
+    const lat2 = b[0] * Math.PI / 180;
+    const lon2 = b[1] * Math.PI / 180;
+    const dlat = lat2 - lat1;
+    const dlon = lon2 - lon1;
+    const h = Math.sin(dlat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function computeGpxStats(coords) {
+    if (!coords || coords.length < 2) return { distanceKm: 0 };
+    let dist = 0;
+    for (let i = 1; i < coords.length; i++) {
+      dist += haversine(coords[i - 1], coords[i]);
+    }
+    return { distanceKm: dist };
+  }
+
   // --- DOM refs -----------------------------------------------------------
   const radiusRange = document.getElementById("radiusRange");
   const radiusLabel = document.getElementById("radiusLabel");
@@ -621,6 +675,9 @@
   const listSubtitle = document.getElementById("listSubtitle");
   const useLocationBtn = document.getElementById("useLocationBtn");
   const resetLyonBtn = document.getElementById("resetLyonBtn");
+  const importGpxBtn = document.getElementById("importGpxBtn");
+  const gpxInput = document.getElementById("gpxInput");
+  const gpxInfoEl = document.getElementById("gpxInfo");
 
   // Couleurs par groupe pour les points sur la carte
   const TAXON_COLOR = {
@@ -665,6 +722,10 @@
   // Layer pour les observations
   let observationsLayer = L.layerGroup().addTo(map);
 
+  // Layer pour le GPX
+  let gpxLayer = null;
+  let gpxTrackCoords = [];
+
   coordsText.textContent = `Centre : ${formatLatLng(...LYON)}`;
 
   function updateCirclePosition() {
@@ -673,6 +734,25 @@
     radiusCircle.setLatLng([lat, lng]);
     radiusCircle.setRadius(r);
     coordsText.textContent = `Centre : ${formatLatLng(lat, lng)}`;
+  }
+
+  function adjustRadiusToBounds(bounds) {
+    try {
+      const north = bounds.getNorth();
+      const south = bounds.getSouth();
+      const east = bounds.getEast();
+      const west = bounds.getWest();
+      const diagKm = haversine([north, west], [south, east]);
+      let radiusKm = diagKm / 2;
+      if (!isFinite(radiusKm) || radiusKm <= 0) return;
+      radiusKm = Math.max(2, Math.min(30, radiusKm));
+      const rounded = Math.round(radiusKm);
+      radiusRange.value = rounded;
+      radiusLabel.textContent = rounded.toString();
+      updateCirclePosition();
+    } catch (_) {
+      // silencieux
+    }
   }
 
   // --- Fetch iNaturalist species (agrégées pour la liste) -----------------
@@ -684,14 +764,12 @@
     const iconic = taxonGroup.value;
     const monthVal = monthSelect.value;
 
-    // Annuler la requête précédente si elle est toujours en cours
     if (lastController) {
       lastController.abort();
     }
     const controller = new AbortController();
     lastController = controller;
 
-    // Construction de l’URL iNaturalist (espèces agrégées)
     const url = new URL("https://api.inaturalist.org/v1/observations/species_counts");
     url.searchParams.set("lat", lat.toFixed(4));
     url.searchParams.set("lng", lng.toFixed(4));
@@ -729,7 +807,6 @@
       renderSpeciesList(results);
       setStatusReady(data.total_results);
 
-      // Une fois la liste chargée, on récupère les observations pour la carte
       fetchObservationsForMap({
         lat,
         lng,
@@ -739,7 +816,7 @@
       });
     } catch (err) {
       if (err.name === "AbortError") {
-        return; // requête annulée → on ignore
+        return;
       }
       console.error("Erreur iNaturalist species_counts:", err);
       renderError(
@@ -786,8 +863,6 @@
 
     speciesCountEl.textContent = "";
     listSubtitle.textContent = "Erreur de chargement.";
-
-    // On efface aussi les points sur la carte
     observationsLayer.clearLayers();
   }
 
@@ -825,7 +900,6 @@
       renderObservationPoints(results);
     } catch (err) {
       console.error("Erreur iNaturalist observations:", err);
-      // on ne casse pas l’app pour autant, on laisse juste la carte vide
       observationsLayer.clearLayers();
     }
   }
@@ -924,24 +998,113 @@
     speciesListEl.innerHTML = cards.join("");
   }
 
+  // --- GPX import & parsing -----------------------------------------------
+  function parseGpxAndDisplay(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, "application/xml");
+
+        let pts = [];
+        const trkpts = Array.from(xml.getElementsByTagName("trkpt"));
+        if (trkpts.length) {
+          pts = trkpts.map((pt) => {
+            const lat = parseFloat(pt.getAttribute("lat"));
+            const lon = parseFloat(pt.getAttribute("lon"));
+            return [lat, lon];
+          }).filter((p) => !Number.isNaN(p[0]) && !Number.isNaN(p[1]));
+        } else {
+          const rtepts = Array.from(xml.getElementsByTagName("rtept"));
+          if (rtepts.length) {
+            pts = rtepts.map((pt) => {
+              const lat = parseFloat(pt.getAttribute("lat"));
+              const lon = parseFloat(pt.getAttribute("lon"));
+              return [lat, lon];
+            }).filter((p) => !Number.isNaN(p[0]) && !Number.isNaN(p[1]));
+          } else {
+            const wpts = Array.from(xml.getElementsByTagName("wpt"));
+            pts = wpts.map((pt) => {
+              const lat = parseFloat(pt.getAttribute("lat"));
+              const lon = parseFloat(pt.getAttribute("lon"));
+              return [lat, lon];
+            }).filter((p) => !Number.isNaN(p[0]) && !Number.isNaN(p[1]));
+          }
+        }
+
+        if (!pts.length) {
+          alert("Impossible d’extraire des points GPS de ce fichier GPX.");
+          return;
+        }
+
+        gpxTrackCoords = pts;
+
+        if (gpxLayer) {
+          map.removeLayer(gpxLayer);
+        }
+
+        gpxLayer = L.polyline(pts, {
+          color: "#facc15",
+          weight: 3,
+          opacity: 0.9
+        }).addTo(map);
+
+        const bounds = gpxLayer.getBounds();
+        map.fitBounds(bounds, { padding: [30, 30] });
+
+        const center = bounds.getCenter();
+        marker.setLatLng(center);
+        adjustRadiusToBounds(bounds);
+
+        const stats = computeGpxStats(pts);
+        const distStr = stats.distanceKm > 0
+          ? ` ~${stats.distanceKm.toFixed(1)} km`
+          : "";
+        gpxInfoEl.textContent = `${file.name}${distStr}`;
+
+        debouncedFetch();
+        statusText.textContent = "Trajet GPX chargé. Cercle ajusté autour du parcours.";
+      } catch (err) {
+        console.error("Erreur parsing GPX:", err);
+        alert("Erreur lors de la lecture du fichier GPX.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
   // --- Event wiring -------------------------------------------------------
-  radiusRange.addEventListener("input", () => {
-    radiusLabel.textContent = radiusRange.value;
+  const debouncedFetchHandler = () => {
     updateCirclePosition();
     debouncedFetch();
+  };
+
+  radiusRange.addEventListener("input", () => {
+    radiusLabel.textContent = radiusRange.value;
+    debouncedFetchHandler();
   });
 
   taxonGroup.addEventListener("change", () => {
-    debouncedFetch();
+    debouncedFetchHandler();
   });
 
   monthSelect.addEventListener("change", () => {
-    debouncedFetch();
+    debouncedFetchHandler();
   });
 
   marker.on("dragend", () => {
-    updateCirclePosition();
-    debouncedFetch();
+    debouncedFetchHandler();
+  });
+
+  // Import GPX
+  importGpxBtn.addEventListener("click", () => {
+    gpxInput.click();
+  });
+
+  gpxInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    parseGpxAndDisplay(file);
   });
 
   // Bouton "ma position"
@@ -981,6 +1144,12 @@
   resetLyonBtn.addEventListener("click", () => {
     map.setView(LYON, 12);
     marker.setLatLng(LYON);
+    gpxTrackCoords = [];
+    if (gpxLayer) {
+      map.removeLayer(gpxLayer);
+      gpxLayer = null;
+    }
+    gpxInfoEl.textContent = "Aucun trajet chargé.";
     updateCirclePosition();
     debouncedFetch();
   });
