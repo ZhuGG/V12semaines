@@ -280,18 +280,16 @@
       gap: 6px;
     }
 
-    .dot-live {
+    .status-dot {
       width: 6px;
       height: 6px;
       border-radius: 999px;
       background: var(--accent);
       box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+      transition: background 150ms ease, box-shadow 150ms ease;
     }
 
-    .dot-error {
-      width: 6px;
-      height: 6px;
-      border-radius: 999px;
+    .status-dot.error {
       background: var(--danger);
       box-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
     }
@@ -408,11 +406,6 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .badge-group {
-      font-size: .7rem;
-      color: var(--accent);
-    }
-
     .empty-state {
       font-size: .8rem;
       color: var(--text-muted);
@@ -443,7 +436,7 @@
 <header>
   <div class="title">
     FloraBike
-    <span class="title-badge">Prototype live</span>
+    <span class="title-badge">V1 prototype</span>
   </div>
   <p class="subtitle">
     Découvre les espèces observées autour de ta route, en direct depuis iNaturalist.
@@ -516,7 +509,7 @@
 
       <div class="status-bar" id="statusBar">
         <span class="status-pill">
-          <span class="dot-live"></span>
+          <span class="status-dot" id="statusDot"></span>
           <span id="statusText">Déplace le marqueur ou utilise ta position.</span>
         </span>
         <span id="coordsText"></span>
@@ -580,6 +573,7 @@
   const monthSelect = document.getElementById("monthSelect");
   const statusText = document.getElementById("statusText");
   const statusBar = document.getElementById("statusBar");
+  const statusDot = document.getElementById("statusDot");
   const coordsText = document.getElementById("coordsText");
   const speciesListEl = document.getElementById("speciesList");
   const speciesCountEl = document.getElementById("speciesCount");
@@ -587,7 +581,7 @@
   const useLocationBtn = document.getElementById("useLocationBtn");
   const resetLyonBtn = document.getElementById("resetLyonBtn");
 
-  // Initialise month = mois courant par défaut (mais option "Toute l’année" reste dans la liste)
+  // Initialise month = mois courant par défaut
   (function initMonthDefault() {
     const current = getCurrentMonth().toString();
     monthSelect.value = current;
@@ -636,23 +630,22 @@
     const iconic = taxonGroup.value;
     const monthVal = monthSelect.value;
 
-    // Abort previous request if still pending
+    // Annuler la requête précédente si elle est toujours en cours
     if (lastController) {
       lastController.abort();
     }
     const controller = new AbortController();
     lastController = controller;
 
-    // Build URL
+    // Construction de l’URL iNaturalist
     const url = new URL("https://api.inaturalist.org/v1/observations/species_counts");
     url.searchParams.set("lat", lat.toFixed(4));
     url.searchParams.set("lng", lng.toFixed(4));
-    url.searchParams.set("radius", radiusKm.toString());
-    url.searchParams.set("per_page", "50");           // base de démo, pour rester léger
+    url.searchParams.set("radius", radiusKm.toString()); // rayon en km
+    url.searchParams.set("per_page", "50");
     url.searchParams.set("verifiable", "true");
     url.searchParams.set("quality_grade", "research");
     url.searchParams.set("locale", "fr");
-    url.searchParams.set("preferred_place_id", "6742"); // France (approx) si dispo
 
     if (iconic && iconic !== "all") {
       url.searchParams.set("iconic_taxa", iconic);
@@ -661,24 +654,35 @@
       url.searchParams.set("month", monthVal);
     }
 
+    console.log("[FloraBike] Requête iNaturalist:", url.toString());
+
     setStatusLoading();
 
     try {
       const res = await fetch(url.toString(), {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: {
+          "Accept": "application/json"
+        }
       });
+
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
       }
+
       const data = await res.json();
-      renderSpeciesList(data.results || []);
+      const results = Array.isArray(data.results) ? data.results : [];
+      renderSpeciesList(results);
       setStatusReady(data.total_results);
     } catch (err) {
       if (err.name === "AbortError") {
-        return; // requête annulée -> on ignore
+        return; // requête annulée → on ignore
       }
       console.error("Erreur iNaturalist:", err);
-      renderError("Impossible de récupérer les données iNaturalist pour cette zone.");
+      renderError(
+        "Impossible de récupérer les données iNaturalist pour cette zone.",
+        err
+      );
     }
   }
 
@@ -686,26 +690,37 @@
 
   function setStatusLoading() {
     statusText.textContent = "Récupération des espèces observées…";
-    statusBar.querySelector(".status-pill .dot-live").style.background = "#38bdf8";
+    statusDot.classList.remove("error");
+    statusDot.style.background = "var(--accent)";
+    statusDot.style.boxShadow = "0 0 10px rgba(56, 189, 248, 0.8)";
   }
 
   function setStatusReady(totalResults) {
     statusText.textContent = totalResults
       ? "Zone chargée. Résultats mis à jour."
       : "Zone chargée, mais aucune espèce trouvée (ou très peu de données).";
-    statusBar.querySelector(".status-pill .dot-live").style.background = "#22c55e";
+    statusDot.classList.remove("error");
+    statusDot.style.background = "#22c55e";
+    statusDot.style.boxShadow = "0 0 10px rgba(34, 197, 94, 0.8)";
   }
 
-  function renderError(message) {
-    statusText.textContent = message;
-    const dot = statusBar.querySelector(".status-pill .dot-live");
-    dot.classList.add("dot-error");
-    dot.classList.remove("dot-live");
+  function renderError(message, errorObj) {
+    statusDot.classList.add("error");
+    let extra = "";
+    if (errorObj) {
+      extra = ` (${errorObj.message || "erreur inconnue"})`;
+    }
+
+    statusText.textContent = `${message}${extra}`;
+
     speciesListEl.innerHTML = `
       <div class="empty-state">
         ${message}<br />
-        Tu peux essayer un rayon plus large ou un autre groupe taxonomique.
+        Détail technique : ${errorObj ? errorObj.message : "inconnu"}.<br/>
+        Tu peux essayer un rayon plus large, un autre groupe taxonomique
+        ou vérifier dans la console du navigateur (F12 → onglet Réseau).
       </div>`;
+
     speciesCountEl.textContent = "";
     listSubtitle.textContent = "Erreur de chargement.";
   }
@@ -829,4 +844,4 @@
   debouncedFetch();
 </script>
 </body>
-             </html>
+</html>
