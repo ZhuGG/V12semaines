@@ -1,148 +1,832 @@
-<!DOCTYPE html><html lang="fr">
+<!DOCTYPE html>
+<html lang="fr">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Programme 12 semaines – Cuisses & Fessiers</title>
-<style>
- :root{
-  --primary:#016aff;
-  --secondary:#ff7f50;
-  --card:#ffffff;
-  --bg:#f6f8fb;
-  --text:#333;
- }
- body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);} 
- header{background:linear-gradient(90deg,var(--primary),var(--secondary));color:#fff;text-align:center;padding:1rem 1.2rem;} 
- h1{margin:0;font-size:1.5rem;letter-spacing:.3px;} 
- .container{max-width:960px;margin:auto;padding:1rem;} 
- h2{margin-top:2rem;font-size:1.25rem;color:var(--primary);} 
- details{background:var(--card);border-radius:12px;padding:1rem 1.2rem;margin:1rem 0;box-shadow:0 3px 10px rgb(0 0 0 / .07);} 
- summary{font-weight:700;font-size:1rem;cursor:pointer;outline:none;} 
- ul{margin-top:.7rem;line-height:1.45rem;} 
- li{margin-bottom:.45rem;} 
- .week-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem;} 
- .box{background:var(--card);padding:.9rem;border-radius:10px;box-shadow:0 2px 5px rgb(0 0 0 / .06);} 
- .box h3{margin:0 0 .4rem 0;font-size:1rem;color:var(--secondary);} 
- .note{font-size:.9rem;font-style:italic;margin-top:1rem;} 
- .footer{font-size:.8rem;text-align:center;color:#777;margin:2rem 0 1rem;} 
- a.dl{display:inline-block;background:var(--secondary);color:#fff;padding:.5rem 1rem;border-radius:8px;text-decoration:none;margin-top:.5rem;font-size:.9rem;} 
-</style>
+  <meta charset="UTF-8" />
+  <title>FloraBike — Ce qui vit autour de ta route</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+
+  <style>
+    :root {
+      --bg: #050816;
+      --bg-alt: #0b1020;
+      --card: #111827;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.2);
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --danger: #f97373;
+      --border: #1f2933;
+      --radius-lg: 18px;
+      --radius-full: 999px;
+      --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.9);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #0b1120 0, #020617 45%, #000 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 16px 20px 8px;
+    }
+
+    .title {
+      font-size: 1.4rem;
+      font-weight: 650;
+      letter-spacing: .03em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-badge {
+      font-size: .7rem;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--accent);
+    }
+
+    .subtitle {
+      font-size: .85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 12px;
+      padding: 8px 12px 12px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: radial-gradient(circle at top left,
+        rgba(56, 189, 248, 0.18),
+        transparent 50%),
+        var(--bg-alt);
+      border-radius: 22px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow: var(--shadow-soft);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at top right,
+        rgba(56, 189, 248, 0.08),
+        transparent 55%);
+      mix-blend-mode: screen;
+      opacity: .8;
+    }
+
+    .panel-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
+    }
+
+    .section-title {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chip {
+      font-size: .7rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* Map container */
+    #map {
+      width: 100%;
+      flex: 1;
+      min-height: 280px;
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.8);
+      overflow: hidden;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      align-items: center;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: .8rem;
+    }
+
+    label {
+      color: var(--text-muted);
+    }
+
+    select, input[type="range"] {
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      background: rgba(15, 23, 42, 0.95);
+      color: var(--text);
+      font-size: .8rem;
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease,
+        background 150ms ease;
+    }
+
+    select:focus, input[type="range"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .range-value {
+      min-width: 38px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      font-size: .8rem;
+      border-radius: var(--radius-full);
+      padding: 7px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(31, 41, 55, 0.95);
+      color: var(--text);
+      border: 1px solid rgba(75, 85, 99, 0.8);
+      transition: background 150ms ease, transform 120ms ease,
+        box-shadow 120ms ease, border-color 150ms ease;
+    }
+
+    button.primary {
+      background: radial-gradient(circle at top left,
+        rgba(56, 189, 248, 0.25), var(--accent));
+      border-color: rgba(56, 189, 248, 0.9);
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.45);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.9);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.8);
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .status-bar {
+      font-size: .75rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot-live {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+    }
+
+    .dot-error {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--danger);
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
+    }
+
+    /* Species list */
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: .8rem;
+      color: var(--text-muted);
+      align-items: baseline;
+    }
+
+    .species-count {
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    .species-list {
+      margin-top: 6px;
+      padding-right: 3px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 200px;
+    }
+
+    .species-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .species-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .species-list::-webkit-scrollbar-thumb {
+      background: rgba(75, 85, 99, 0.7);
+      border-radius: 999px;
+    }
+
+    .species-card {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 9px;
+      border-radius: 14px;
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      background: radial-gradient(circle at top left,
+        rgba(56, 189, 248, 0.08),
+        rgba(15, 23, 42, 0.96));
+      margin-bottom: 6px;
+    }
+
+    .species-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: radial-gradient(circle at top,
+        rgba(56, 189, 248, 0.15),
+        #020617);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .8rem;
+      color: var(--text-muted);
+    }
+
+    .species-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .species-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+
+    .species-common {
+      font-size: .85rem;
+      font-weight: 500;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .species-sci {
+      font-size: .75rem;
+      color: var(--text-muted);
+      font-style: italic;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .species-meta {
+      font-size: .75rem;
+      text-align: right;
+      color: var(--text-muted);
+    }
+
+    .badge-count {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .badge-group {
+      font-size: .7rem;
+      color: var(--accent);
+    }
+
+    .empty-state {
+      font-size: .8rem;
+      color: var(--text-muted);
+      padding: 16px 8px;
+      text-align: center;
+    }
+
+    footer {
+      font-size: .7rem;
+      color: var(--text-muted);
+      padding: 6px 12px 10px;
+      text-align: right;
+      opacity: .8;
+    }
+
+    .link {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
+
 <body>
 <header>
- <h1>Programme sportif 12 semaines – Valentina</h1>
- <p>4 séances/semaine – Objectif : affiner cuisses, fessiers & culotte&nbsp;de&nbsp;cheval (sans matériel)</p>
+  <div class="title">
+    FloraBike
+    <span class="title-badge">Prototype live</span>
+  </div>
+  <p class="subtitle">
+    Découvre les espèces observées autour de ta route, en direct depuis iNaturalist.
+  </p>
 </header>
-<div class="container">
- <h2>Structure hebdomadaire (constante)</h2>
- <div class="week-grid">
-  <div class="box"><h3>Séance 1</h3><p><b>Renforcement Bas du corps</b><br>Focus : quadriceps, ischio‑jambiers, fessiers, abducteurs</p></div>
-  <div class="box"><h3>Séance 2</h3><p><b>HIIT Cuisses‑Fessiers</b><br>Cardio explosif ciblé bas du corps</p></div>
-  <div class="box"><h3>Séance 3</h3><p><b>Renforcement global + Core</b><br>Haut du corps & sangle abdominale (avec rappel jambes)</p></div>
-  <div class="box"><h3>Séance 4</h3><p><b>Mobilité & Stabilité</b><br>Yoga doux, gainage postural, stretching profond</p></div>
- </div>
- <p class="note">Déplie chaque semaine pour voir le contenu détaillé (exercices, séries, répétitions, temps de repos, conseils).</p> <!-- S1--> <details>
-  <summary>Semaine 1 – Mise en route</summary>
-  <ul>
-   <li><b>Séance 1</b> – 2×12 squats · 2×10 fentes avant/jambe · 2×15 ponts fessiers · 2×10 donkey kicks/jambe · 2×20 s planche.</li>
-   <li><b>Séance 2</b> – HIIT 3 tours 30" effort / 30" repos : jumping jacks · high knees · mountain climbers · squats dynamiques.</li>
-   <li><b>Séance 3</b> – 2 tours : 8 pompes genoux · 12 squats sumo · 12 superman · 10 fire hydrant/j · planche latérale 15 s/côté.</li>
-   <li><b>Séance 4</b> – Cat‑camel 1 min · fente étirée 20 s/côté · bird‑dog 10/j · clamshell 15/j · équilibre 30 s/j.</li>
-  </ul>
- </details>
- <!-- S2 -->
- <details>
-  <summary>Semaine 2 – Volume ↑</summary>
-  <ul>
-   <li>Séances identiques à la semaine 1 mais <b>3 séries</b> par exercice (ou 4 tours HIIT).</li>
-   <li>Planche ventrale : tenir 30 s/série.</li>
-  </ul>
- </details>
- <!-- S3 -->
- <details>
-  <summary>Semaine 3 – Nouveaux stimuli</summary>
-  <ul>
-   <li><b>Séance 1</b> – Ajout squat sumo jump 3×12 · élévations latérales allongée 3×15/j.</li>
-   <li><b>Séance 2</b> – HIIT 4 tours : skaters · mountain climbers · squat jumps · high knees.</li>
-   <li><b>Séance 3</b> – Dips chaise 3×12 · fentes latérales 3×10/j.</li>
-  </ul>
- </details>
- <!-- S4 -->
- <details>
-  <summary>Semaine 4 – Consolidation (fin module 1)</summary>
-  <ul>
-   <li>Squats 3×18‑20 · Chaise 2×40 s · HIIT 40"/20" 4 tours.</li>
-   <li>Séance 4 : stretching long + respiration diaphragmatique.</li>
-  </ul>
- </details>
- <!-- S5 -->
- <details>
-  <summary>Semaine 5 – Phase 2 : Intensité +</summary>
-  <ul>
-   <li>Ajout <b>fentes bulgares</b> 3×8‑10/j · pont fessier unilatéral 3×12/j.</li>
-   <li>HIIT 5 exos 40"/20" : burpees · skaters · fentes sautées · plank jack+taps · high knees (3 tours).</li>
-   <li>Soulevé terre 1 jambe 3×10/j · bicycle crunch 3×20.</li>
-  </ul>
- </details>
- <!-- S6 -->
- <details>
-  <summary>Semaine 6 – Format Tabata</summary>
-  <ul>
-   <li>Bas corps : idem S5, reps ↑.</li>
-   <li>2‑3 blocs Tabata (8×20"/10"). Ex : [squat jump↔mountain climber] puis [burpee↔skater].</li>
-   <li>Core : planche Superman 3×30 s.</li>
-  </ul>
- </details>
- <!-- S7 -->
- <details>
-  <summary>Semaine 7 – EMOM 12 min</summary>
-  <ul>
-   <li>EMOM alterné : minute impaire 10 burpees · minute paire 8 fentes sautées/j.</li>
-   <li>Bas corps : squats + charge maison, fentes bulgares 3×12.</li>
-   <li>Séance 4 : routine Pilates & équilibre.</li>
-  </ul>
- </details>
- <!-- S8 -->
- <details>
-  <summary>Semaine 8 – Circuit explosif</summary>
-  <ul>
-   <li>HIIT 45"/15" (4 tours) : burpees · fentes sautées · squat jumps · high knees · mountain climber+pompe.</li>
-   <li>Hip thrust surélevé 3×15/j · Chaise 2×1 min.</li>
-  </ul>
- </details>
- <!-- S9 -->
- <details>
-  <summary>Semaine 9 – Sprints extérieurs</summary>
-  <ul>
-   <li>10 × (30 s sprint / 30 s marche).</li>
-   <li>Test squat max 2 min.</li>
-  </ul>
- </details>
- <!-- S10 -->
- <details>
-  <summary>Semaine 10 – HIIT dansé</summary>
-  <ul>
-   <li>Cours fitness dansé 30 min (YouTube) = séance 2.</li>
-   <li>Bas corps : pistol assisté 3×6‑8/j · pont unilatéral 3×15/j.</li>
-  </ul>
- </details>
- <!-- S11 -->
- <details>
-  <summary>Semaine 11 – Circuit favori + Records</summary>
-  <ul>
-   <li>Refaire le HIIT préféré du programme avec 1 tour de +.</li>
-   <li>Plank max · Chaise max.</li>
-  </ul>
- </details>
- <!-- S12 -->
- <details>
-  <summary>Semaine 12 – Challenge final</summary>
-  <ul>
-   <li>Squat max 2 min · Chaise max · Hip thrust 3×20/j.</li>
-   <li>HIIT : rejouer le circuit semaine 1 pour mesurer le progrès.</li>
-   <li>Stretching global 20 min (focus hanches, ischios, fessiers).</li>
-  </ul>
- </details> <p class="note">👟 Toujours commencer par 5‑10 min d’échauffement et finir par 5 min d’étirements.  🥤 Hydratation, sommeil & protéines sont indispensables pour récupérer et sculpter les muscles.</p> <div class="footer">© 2025 – Programme complet rédigé pour Valentina. Libre de partage.<br>Version HTML interactive (consultable hors ligne ou hébergeable sur Notion / Google Sites).</div>
-</div>
+
+<main>
+  <!-- LEFT PANEL: Map + Controls -->
+  <section class="panel">
+    <div class="panel-inner">
+      <div class="section-title">
+        <span>Cercle d’exploration</span>
+        <span class="chip">
+          <span class="chip-dot"></span>
+          Drag &amp; ride
+        </span>
+      </div>
+
+      <div class="controls">
+        <div class="field-group">
+          <label for="taxonGroup">Groupe taxonomique</label>
+          <select id="taxonGroup">
+            <option value="all">Tout le vivant</option>
+            <option value="Plantae">Plantes (Plantae)</option>
+            <option value="Insecta">Insectes (Insecta)</option>
+            <option value="Aves">Oiseaux (Aves)</option>
+            <option value="Mammalia">Mammifères (Mammalia)</option>
+            <option value="Fungi">Champignons (Fungi)</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="monthSelect">Mois</label>
+          <select id="monthSelect">
+            <option value="all">Toute l’année</option>
+            <option value="1">Janvier</option>
+            <option value="2">Février</option>
+            <option value="3">Mars</option>
+            <option value="4">Avril</option>
+            <option value="5">Mai</option>
+            <option value="6">Juin</option>
+            <option value="7">Juillet</option>
+            <option value="8">Août</option>
+            <option value="9">Septembre</option>
+            <option value="10">Octobre</option>
+            <option value="11">Novembre</option>
+            <option value="12">Décembre</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="radiusRange">Rayon</label>
+          <div class="range-row">
+            <input id="radiusRange" type="range" min="1" max="30" value="5" />
+            <span class="range-value"><span id="radiusLabel">5</span> km</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="useLocationBtn" class="primary">
+          📍 Utiliser ma position
+        </button>
+        <button id="resetLyonBtn">
+          🔁 Recentrer sur Lyon
+        </button>
+      </div>
+
+      <div id="map"></div>
+
+      <div class="status-bar" id="statusBar">
+        <span class="status-pill">
+          <span class="dot-live"></span>
+          <span id="statusText">Déplace le marqueur ou utilise ta position.</span>
+        </span>
+        <span id="coordsText"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT PANEL: Species List -->
+  <section class="panel">
+    <div class="panel-inner">
+      <div class="section-title">
+        <span>Espèces observées</span>
+      </div>
+
+      <div class="list-header">
+        <span id="listSubtitle">
+          Rien encore, choisis un point sur la carte.
+        </span>
+        <span class="species-count" id="speciesCount"></span>
+      </div>
+
+      <div class="species-list" id="speciesList">
+        <div class="empty-state">
+          Déplace le marqueur, choisis ton rayon et un groupe taxonomique.
+          FloraBike te renverra les espèces observées dans cette zone à partir des
+          données <a href="https://www.inaturalist.org" target="_blank" class="link">iNaturalist</a>.
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Données fournies par l’API iNaturalist (espèces observées autour d’un point) —
+  ce prototype ne stocke aucune donnée personnelle.<br />
+  Code à déposer tel quel sur GitHub Pages.
+</footer>
+
+<script>
+  // --- Utils --------------------------------------------------------------
+  function debounce(fn, delay) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  function formatLatLng(lat, lng) {
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
+  function getCurrentMonth() {
+    return new Date().getMonth() + 1;
+  }
+
+  // --- DOM refs -----------------------------------------------------------
+  const radiusRange = document.getElementById("radiusRange");
+  const radiusLabel = document.getElementById("radiusLabel");
+  const taxonGroup = document.getElementById("taxonGroup");
+  const monthSelect = document.getElementById("monthSelect");
+  const statusText = document.getElementById("statusText");
+  const statusBar = document.getElementById("statusBar");
+  const coordsText = document.getElementById("coordsText");
+  const speciesListEl = document.getElementById("speciesList");
+  const speciesCountEl = document.getElementById("speciesCount");
+  const listSubtitle = document.getElementById("listSubtitle");
+  const useLocationBtn = document.getElementById("useLocationBtn");
+  const resetLyonBtn = document.getElementById("resetLyonBtn");
+
+  // Initialise month = mois courant par défaut (mais option "Toute l’année" reste dans la liste)
+  (function initMonthDefault() {
+    const current = getCurrentMonth().toString();
+    monthSelect.value = current;
+  })();
+
+  // --- Leaflet map setup --------------------------------------------------
+  const LYON = [45.7578, 4.8320];
+
+  const map = L.map("map", {
+    zoomControl: true,
+    attributionControl: false
+  }).setView(LYON, 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18
+  }).addTo(map);
+
+  let marker = L.marker(LYON, {
+    draggable: true
+  }).addTo(map);
+
+  let radiusCircle = L.circle(LYON, {
+    radius: parseInt(radiusRange.value, 10) * 1000,
+    color: "#38bdf8",
+    fillColor: "#38bdf8",
+    fillOpacity: 0.1,
+    weight: 1.2
+  }).addTo(map);
+
+  coordsText.textContent = `Centre : ${formatLatLng(...LYON)}`;
+
+  function updateCirclePosition() {
+    const { lat, lng } = marker.getLatLng();
+    const r = parseInt(radiusRange.value, 10) * 1000;
+    radiusCircle.setLatLng([lat, lng]);
+    radiusCircle.setRadius(r);
+    coordsText.textContent = `Centre : ${formatLatLng(lat, lng)}`;
+  }
+
+  // --- Fetch iNaturalist species -----------------------------------------
+  let lastController = null;
+
+  async function fetchSpeciesForCurrentSelection() {
+    const { lat, lng } = marker.getLatLng();
+    const radiusKm = parseInt(radiusRange.value, 10);
+    const iconic = taxonGroup.value;
+    const monthVal = monthSelect.value;
+
+    // Abort previous request if still pending
+    if (lastController) {
+      lastController.abort();
+    }
+    const controller = new AbortController();
+    lastController = controller;
+
+    // Build URL
+    const url = new URL("https://api.inaturalist.org/v1/observations/species_counts");
+    url.searchParams.set("lat", lat.toFixed(4));
+    url.searchParams.set("lng", lng.toFixed(4));
+    url.searchParams.set("radius", radiusKm.toString());
+    url.searchParams.set("per_page", "50");           // base de démo, pour rester léger
+    url.searchParams.set("verifiable", "true");
+    url.searchParams.set("quality_grade", "research");
+    url.searchParams.set("locale", "fr");
+    url.searchParams.set("preferred_place_id", "6742"); // France (approx) si dispo
+
+    if (iconic && iconic !== "all") {
+      url.searchParams.set("iconic_taxa", iconic);
+    }
+    if (monthVal && monthVal !== "all") {
+      url.searchParams.set("month", monthVal);
+    }
+
+    setStatusLoading();
+
+    try {
+      const res = await fetch(url.toString(), {
+        signal: controller.signal
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      renderSpeciesList(data.results || []);
+      setStatusReady(data.total_results);
+    } catch (err) {
+      if (err.name === "AbortError") {
+        return; // requête annulée -> on ignore
+      }
+      console.error("Erreur iNaturalist:", err);
+      renderError("Impossible de récupérer les données iNaturalist pour cette zone.");
+    }
+  }
+
+  const debouncedFetch = debounce(fetchSpeciesForCurrentSelection, 400);
+
+  function setStatusLoading() {
+    statusText.textContent = "Récupération des espèces observées…";
+    statusBar.querySelector(".status-pill .dot-live").style.background = "#38bdf8";
+  }
+
+  function setStatusReady(totalResults) {
+    statusText.textContent = totalResults
+      ? "Zone chargée. Résultats mis à jour."
+      : "Zone chargée, mais aucune espèce trouvée (ou très peu de données).";
+    statusBar.querySelector(".status-pill .dot-live").style.background = "#22c55e";
+  }
+
+  function renderError(message) {
+    statusText.textContent = message;
+    const dot = statusBar.querySelector(".status-pill .dot-live");
+    dot.classList.add("dot-error");
+    dot.classList.remove("dot-live");
+    speciesListEl.innerHTML = `
+      <div class="empty-state">
+        ${message}<br />
+        Tu peux essayer un rayon plus large ou un autre groupe taxonomique.
+      </div>`;
+    speciesCountEl.textContent = "";
+    listSubtitle.textContent = "Erreur de chargement.";
+  }
+
+  // --- Render list --------------------------------------------------------
+  function renderSpeciesList(results) {
+    if (!results.length) {
+      speciesListEl.innerHTML = `
+        <div class="empty-state">
+          Aucune espèce trouvée pour cette combinaison (rayon / groupe / mois),
+          ou bien il y a très peu d’observations iNaturalist ici.
+        </div>`;
+      speciesCountEl.textContent = "0 espèce";
+      listSubtitle.textContent = "Zone explorée, mais sans données exploitables.";
+      return;
+    }
+
+    const group = taxonGroup.options[taxonGroup.selectedIndex].textContent;
+    const monthLabel = monthSelect.options[monthSelect.selectedIndex].textContent;
+    const labelList = `${results.length} espèce${results.length > 1 ? "s" : ""}`;
+    speciesCountEl.textContent = labelList;
+    listSubtitle.textContent = `${group} — ${monthLabel.toLowerCase()}`;
+
+    const cards = results.map((item) => {
+      const t = item.taxon || {};
+      const common = t.preferred_common_name || t.preferred_common_name_fr ||
+        t.common_name || null;
+      const sci = t.name || "Nom scientifique inconnu";
+      const initial = (common || sci || "?").charAt(0).toUpperCase();
+      const photoUrl = t.default_photo && t.default_photo.square_url
+        ? t.default_photo.square_url
+        : null;
+      const count = item.count || 0;
+
+      return `
+        <article class="species-card">
+          <div class="species-avatar">
+            ${photoUrl ? `<img src="${photoUrl}" alt="${sci}" loading="lazy" />`
+              : `<span>${initial}</span>`}
+          </div>
+          <div class="species-main">
+            <div class="species-common">
+              ${common || "<span style='color:#9ca3af'>Nom vernaculaire inconnu</span>"}
+            </div>
+            <div class="species-sci">${sci}</div>
+          </div>
+          <div class="species-meta">
+            <div class="badge-count">
+              🧭 <span>${count}</span>
+            </div>
+          </div>
+        </article>`;
+    });
+
+    speciesListEl.innerHTML = cards.join("");
+  }
+
+  // --- Event wiring -------------------------------------------------------
+  radiusRange.addEventListener("input", () => {
+    radiusLabel.textContent = radiusRange.value;
+    updateCirclePosition();
+    debouncedFetch();
+  });
+
+  taxonGroup.addEventListener("change", () => {
+    debouncedFetch();
+  });
+
+  monthSelect.addEventListener("change", () => {
+    debouncedFetch();
+  });
+
+  marker.on("dragend", () => {
+    updateCirclePosition();
+    debouncedFetch();
+  });
+
+  // Bouton "ma position"
+  useLocationBtn.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      alert("La géolocalisation n’est pas disponible dans ce navigateur.");
+      return;
+    }
+    useLocationBtn.disabled = true;
+    useLocationBtn.textContent = "📡 Localisation…";
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        map.setView([lat, lng], 13);
+        marker.setLatLng([lat, lng]);
+        updateCirclePosition();
+        debouncedFetch();
+        useLocationBtn.textContent = "📍 Utiliser ma position";
+        useLocationBtn.disabled = false;
+      },
+      (err) => {
+        console.warn("Erreur geoloc:", err);
+        alert("Impossible de récupérer ta position (autorisation refusée ou erreur).");
+        useLocationBtn.textContent = "📍 Utiliser ma position";
+        useLocationBtn.disabled = false;
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 10000
+      }
+    );
+  });
+
+  resetLyonBtn.addEventListener("click", () => {
+    map.setView(LYON, 12);
+    marker.setLatLng(LYON);
+    updateCirclePosition();
+    debouncedFetch();
+  });
+
+  // Initial fetch (Lyon par défaut)
+  updateCirclePosition();
+  debouncedFetch();
+</script>
 </body>
-     </html>
+             </html>
